@@ -1,32 +1,45 @@
 ---
 name: photo-studio-generator
 description: >-
-  Universal, standalone, interactive in-chat photo-editing prompt generator.
-  Use when a user wants to configure, compose, copy, revise, or regenerate a
-  complete portable prompt for editing one or multiple photos, including
-  portraits, restoration, creative grading, and collages. Does not edit images.
+  Hybrid standalone in-chat photo configurator and direct image editing skill.
+  When a user attaches photos and invokes Photo Studio Generator, show the
+  interactive editor configurator and apply the edit on confirmation. Direct
+  /enhance or named preset commands edit photos immediately. Also supports
+  generating full portable copyable prompts without using a plugin.
 ---
 
 # Photo Studio Generator
 
-**Type:** Standalone, single-file skill. **Purpose:** Build full, tool-agnostic, copy-ready photo editing prompts through an intuitive in-chat configurator. **No plugin mode, commands exported to plugins, external dependencies, attached schemas, hosted assets, or HTML required.** The skill NEVER processes an image itself and NEVER claims it has edited or rendered a photo.
+**Type:** Standalone, single-file hybrid photo-editing skill. **Purpose:** Offer an intuitive in-chat photo configurator with actual photo editing when a compatible image-editing tool is available, plus portable full-prompt export. **No Gipi plugin, external schema, HTML, or other skill required.** Image editing requires the host application's image editing capability. Never claim an image has been edited before a tool returns a result.
+
+## Routing — highest priority first
+
+1. **Direct preset shortcut + attached photo(s):** `/enhance`, `/studio`, `/professional`, `/cinematic`, `/editorial`, `/golden`, `/beauty`, `/event`, `/street`, or `/restore` — immediately invoke the available image editing tool on the **original photo**, applying the named preset and any provided modifiers. **Do not show a configurator, ask for confirmation, or output only a prompt.** A command such as `/enhance + studio lighting + retouch 40%` is a direct edit request.
+2. **Direct collage shortcut:** `/collage` with 2+ attached original photos — immediately run the default enhancement-first collage instructions through the image editor, unless the user explicitly requests configuration instead. Preserve each subject. If the tool supports one operation only, describe both logical stages in the editing request; don't claim separate intermediate images exist.
+3. **Photo + skill invocation:** If the user uploads one or more photos and says “gunakan skill Photo Studio Generator”, “Photo Studio Generator”, “edit”, or equivalent **without a direct preset shortcut**, **immediately display the in-chat configurator** with defaults inferred from the uploaded source(s). Do not ask whether they want prompt mode, plugin mode, or HTML. One photo defaults to Single Photo; 2+ photos default to Collage if collage is intended, otherwise Single Photo/batch choice.
+4. **Apply Edit:** The configurator's primary action must be **Apply Edit** whenever original photos are available. Its click must request editing of those exact originals with **all current settings** via the host's supported image editing action. Do not merely print a prompt on Apply Edit. If an interactive control cannot directly access a tool, submit the complete configuration and source-photo reference into the conversation for immediate tool-based editing. If no image editor is available, explain the limitation and offer the full prompt to copy; **never simulate successful editing**.
+5. **No photo / prompt-building intent:** Show an in-chat configurator with **Generate Prompt** as the primary action. Produce one complete portable prompt that the user can copy, even without attached images. With photos present, offer **Copy Full Prompt** as a *secondary* action alongside Apply Edit.
+6. **Explicit prompt-only command:** `/prompt`, “generate prompt”, “copy prompt”, or “prompt only” always creates/reveals the complete prompt without editing, regardless of uploaded photos. If a user asks only to write a prompt, do not automatically edit.
+7. **Retry / edit configuration:** `/retry` restores the latest available configuration and the same original photo set if accessible, and **reopens the configurator**, not an immediate edit. `/reset` resets settings. If source photos cannot be accessed, request reattachment before editing. Never treat an AI-generated edit as the original without express user consent.
+8. **Help / list:** `/help` shows usage; `/list` or `/presets` shows all 10 presets and grading options. These do not edit.
 
 ## Operating contract
 
-1. When invoked without an explicit configuration, show the **in-chat configurator**. Do not merely describe it and do not ask all settings as separate serial questions.
-2. Prefer interactive native chat controls when the host supports them (segmented selectors, dropdowns, sliders, checkboxes, and one **Generate Prompt** action). Use a compact grouped conversational chooser when interactive controls are unavailable. No hard requirement for a special UI runtime.
-3. Maintain settings during the current conversation. Make every selection update the final prompt. The output is always a **complete portable natural-language prompt**, not a shorthand plugin command or a JSON config. Never create/export plugin-mode commands.
-4. **Generate Prompt** displays one self-contained prompt in an easily selectable/copyable text block (or the host's copyable writing/code surface), preceded by a short label. If supported, provide a functional **Copy Prompt** control; otherwise rely on the surface's copy feature. Avoid claiming clipboard success without a clipboard action.
-5. The generated prompt is aimed at a separate image editor and must instruct that editor to use the original photo(s) attached **to the editing request**. The skill should not demand that users upload images merely to formulate a prompt. Uploaded examples may inform context, but generating prompts doesn't require them.
-6. Never route through Gipi Photo Studio, never require another skill, never embed local file names/paths or model-specific tool commands in the output. Do not modify photos or call image-generation tools unless the user separately and explicitly changes the task to photo editing.
-7. On **Reset**, restore schema defaults; on **Retry / Edit Configuration**, reopen the most recent settings when still available in conversation. State clearly if settings are lost, and restore defaults. Retry means regenerate/configure the prompt, not edit or render images.
-8. Respect explicit instructions as overrides. Infer sensible defaults; don't add friction by asking for optional details. Only ask a clarification when a fundamental decision cannot be inferred.
+- The configurator must appear **in the chat**, using actual functioning host-native controls (dropdowns, segmented options, sliders, checkbox, text input, buttons) **when supported**. If the host lacks that UI capability, provide a concise conversational chooser. A Markdown skill alone cannot force native widgets to exist on every platform.
+- Prepopulate defaults and maintain a single active configuration state within the current chat. Never force the user to answer every setting one by one.
+- Default single-photo settings: Natural Enhance, natural intensity, retouch 25%, HD appearance target, original aspect, auto lighting, preserve original background, grading none.
+- Keep three actions distinct: **Apply Edit** = actually invoke editor (when photo and tool present); **Copy Full Prompt** = show/copy portable prompt only; **Reset** = restore defaults. Do not label a button Apply Edit if it only generates text.
+- Editing uses the ORIGINAL uploaded photos. If unclear which photos are in scope, ask; if images are unavailable, request reupload. Do not invent, substitute, or silently swap sources.
+- All photo-editing requests must preserve the identity and protected details of all people as defined below, including glasses, braces, freckles, moles, and natural skin texture. Respect background and clothing settings.
+- When invoking the editing tool, pass a **complete natural-language editing instruction** containing the current configuration, source fidelity, and negative constraints. The prompt composer later in this skill is the source of truth for these editing instructions.
+- The resulting image must come from the actual image tool. Do not falsely claim success or promise guaranteed 4K resolution/identity fidelity.
+- Always display small `by enviee-labs` credit below the configurator, outside the generated editing prompt. Output no plugin commands.
 
 ## Interaction design
 
 ### First-screen compact controls
 
-Present one concise panel, with a visible default ready for immediate generation. Organize controls in this order; progressive disclosure reduces clutter:
+Present one concise panel, with defaults preselected and the primary action chosen according to the presence of source photos. Organize controls in this order; progressive disclosure reduces clutter:
 
 - **Mode**: Single Photo (default) / Collage (when multiple source photos or a collage is requested).
 - **Editing preset** (single photo): Natural Enhance (default), Studio Quality, Professional Headshot, Cinematic Portrait, Editorial Fashion, Golden Hour, Beauty Retouch, Wedding & Event, Street Photography, Photo Restoration.
@@ -41,7 +54,7 @@ Present one concise panel, with a visible default ready for immediate generation
 
 For collage, show instead or in addition: **Enhance Each Photo First** (enabled by default), **Collage Style** (Soft Elegant default / Clean Grid / Editorial / Scrapbook Light), **Layout** (Auto default / Side by Side / Hero + Smaller / Grid / Layered), **Spacing** (Thin default / None / Medium), **Border** (White default / None / Black), **Decor** (Matching Subtle default / None), **Canvas Ratio** (Auto default / Original / 1:1 / 4:5 / 9:16 / 16:9), and optionally number of photos (for planning only; editing tool must use the actual supplied count). When user says Instagram Story, default to 9:16. Collage still exposes grading (None default; strength 40% if enabled) and optional notes.
 
-**UI behavior:** Use interactive controls when available, with values tied to one configuration state. If the runtime cannot guarantee functioning controls, use a short numbered conversational chooser and accept compact answers such as `mode=collage, style=soft-elegant, ratio=9:16`, then generate upon request. Do not show inert controls. On user command `generate`, `buat prompt`, or equivalent, generate immediately using current settings. On `show all`, reveal options. On `reset`, restore defaults. On `retry`, reopen previous configuration. On `edit`, re-open config, not an image editor. Provide a single clear **Generate Prompt** action; never an **Apply Edit** button.
+**UI behavior:** Use interactive controls when available, with values tied to one configuration state. If the runtime cannot guarantee functioning controls, use a short numbered conversational chooser and accept compact answers such as `mode=collage, style=soft-elegant, ratio=9:16`, then generate upon request. Do not show inert controls. On user command `generate`, `buat prompt`, or equivalent, generate immediately using current settings. On `show all`, reveal options. On `reset`, restore defaults. On `retry`, reopen previous configuration. On `edit`, re-open config, not an image editor. With source photos and a compatible image editor, offer **Apply Edit** as the primary action and **Copy Full Prompt** secondarily. Without photos or when in explicit prompt-only mode, offer **Generate Prompt**. These actions must work, not be decorative.
 
 ### Presets (complete set)
 
@@ -98,7 +111,7 @@ Display the credit `by enviee-labs` as a small footer **beneath the in-chat conf
 
 ## Prompt composer — exact output behavior
 
-Generate a complete standalone instruction in the user's preferred language unless English is explicitly requested. English is a good default for cross-model portability **only if user has no stated language preference**; for an Indonesian conversation prefer an Indonesian configuration UI and optionally make the generated editing prompt English if user requests universal English output. Do not make the final prompt a recipe requiring access to this skill or conversation.
+For either an Apply Edit tool request or a Copy Full Prompt action, compose a complete standalone editing instruction in the user's preferred language unless English is explicitly requested. English is a good default for cross-model portability **only if user has no stated language preference**; for an Indonesian conversation prefer an Indonesian configuration UI and optionally make the generated editing prompt English if user requests universal English output. Do not make the final prompt a recipe requiring access to this skill or conversation.
 
 Each generated prompt should contain these labeled semantic sections in clear natural language (headings optional):
 
@@ -121,15 +134,18 @@ Use this only as a starting template; rewrite it to reflect every chosen setting
 
 ## Examples of expected interaction
 
-- User: “Photo Studio Generator” → Display interactive settings, defaults already set, **Generate Prompt** available.
-- User: “Buat prompt cinematic, 9:16, retouch 40%, softbox” → Configure in one pass and generate prompt immediately if asked, without requiring a plugin or photo upload.
-- User: “Kolase 4 foto buat IG Story” → Collage mode, enhance individually ON, Soft Elegant, Auto layout, 9:16; show configurator if there is no generate instruction.
-- User: “Generate prompt” → Output a complete portable prompt, not an edit.
-- User: “Retry, ganti grading ke Warm Golden” → Reuse current settings if available, change grade, reopen config or regenerate prompt based on request.
+- User attaches photo + “gunakan skill Photo Studio Generator” → **Immediately display in-chat configurator**, with **Apply Edit** and **Copy Full Prompt** actions. Do not edit until Apply Edit.
+- User attaches photo + `/enhance` → **Immediately edit the uploaded photo** with Natural Enhance defaults; no configurator.
+- User attaches photo + `/cinematic + retouch:40% + aspect:9:16` → **Immediately edit** with those modifiers; no configurator.
+- User attaches 4 photos + `/collage` → **Immediately enhance each original separately (logical step) and compose a collage**, using supported image editor; no configurator.
+- User: “Photo Studio Generator” with no photos → Display interactive settings with **Generate Prompt**.
+- User: “Generate prompt” → Output a full portable prompt without editing.
+- User: `/retry` → Reopen last available configuration for the original photos; do not auto-render.
+- User: “Apply Edit” after configuring → Invoke the editing tool on original source photos; do not just echo prompt.
 
 ## Portability and safety
 
-This is a **single self-contained SKILL.md**. It works with image editors that accept detailed natural language; fidelity, output format and editing support depend on the destination editor. No network, login, Gipi plugin, local assets, HTML, code execution or image-editing action is needed for prompt composition. Native interactive controls are optional platform capabilities, not guarantees. When unsupported, the conversational configurator must remain fully functional.
+This is a **single self-contained SKILL.md**, without Gipi plugin dependency. Prompt generation works without an editor; **actual editing requires a compatible host image editing tool and accessible source images**. Native UI widgets depend on platform support and cannot be guaranteed simply by loading Markdown. When absent, use a functional conversational configurator; when an editing tool is absent, provide a complete portable prompt rather than claim the image was edited. Never upload images to an unrequested external service.
 
 ---
 
